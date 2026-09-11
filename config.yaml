@@ -1,0 +1,80 @@
+system:
+  name: "SmartRAG System"
+  version: "2.0.0"
+  offline_mode: true
+  debug: false
+  log_level: "INFO"
+
+models:
+  # LLM for response generation (offline with Ollama)
+  llm_type: "ollama"
+  llm_model: "llama3.1:8b" # Llama 3.1 8B model (available in Ollama)
+  ollama_host: "http://localhost:11434"
+
+  # Text embedding model (using Ollama's embedding model)
+  embedding_model: "nomic-embed-text"
+  embedding_dimension: 768 # nomic-embed-text produces 768-dimensional vectors
+
+  # Vision model for image understanding (BLIP)
+  vision_model: "Salesforce/blip-image-captioning-base"
+
+  # Speech-to-text model (keeping audio processing)
+  whisper_model: "base"
+
+vector_store:
+  type: "chromadb"
+  persist_directory: "./vector_db"
+  collection_name: "multimodal_documents"
+  embedding_dimension: 768 # Must match models.embedding_dimension
+  ollama_host: "http://localhost:11434"
+
+processing:
+  # Text chunking settings
+  chunk_size: 1000
+  chunk_overlap: 200
+
+  # Traditional image processing settings (with OCR via Tesseract)
+  max_image_size: [1024, 1024] # Larger size for better OCR
+  ocr_enabled: true # Enable Tesseract OCR
+  store_original_images: true
+  image_preprocessing: "resize" # resize, crop, none
+
+  # Audio processing settings
+  audio_sample_rate: 16000
+  max_audio_duration: 300 # seconds
+
+  # Batch processing
+  batch_size: 32 # Higher for traditional processing
+
+retrieval:
+  top_k: 5
+  similarity_threshold: 0.7
+  rerank_enabled: false
+
+generation:
+  # LLM generation parameters
+  max_tokens: 2048
+  temperature: 0.7
+  top_p: 0.9
+  top_k: 50
+  do_sample: true
+  max_new_tokens: 1024
+
+ui:
+  title: "SmartRAG - Multimodal AI Assistant"
+  page_icon: "🤖"
+  layout: "wide"
+  theme: "dark"
+  show_recent_uploads: true
+  max_upload_size_mb: 200
+
+supported_formats:
+  documents: [".pdf", ".docx", ".doc", ".txt", ".md", ".rtf"]
+  images: [".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".webp"]
+  audio: [".mp3", ".wav", ".m4a", ".ogg", ".flac"]
+
+storage:
+  data_directory: "./data"
+  logs_directory: "./logs"
+  cache_directory: "./cache"
+  temp_uploads_directory: "./temp_uploads"
