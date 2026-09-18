@@ -85,40 +85,6 @@ def load_rag_system():
         st.stop()
 
 
-def _get_vector_store(system):
-    """Best-effort lookup of the underlying vector store, however deep it's nested."""
-    for path in (
-        lambda s: s._system.vector_store,
-        lambda s: s._system._system.vector_store,
-    ):
-        try:
-            vs = path(system)
-            if vs is not None:
-                return vs
-        except AttributeError:
-            continue
-    return None
-
-
-def get_indexed_files(system):
-    """Return [{'name': ..., 'chunk_count': ...}] for everything currently indexed."""
-    vector_store = _get_vector_store(system)
-    if vector_store is None or not hasattr(vector_store, "_collection"):
-        return []
-    try:
-        all_docs = vector_store._collection.get()
-        counts = {}
-        metadatas = all_docs.get("metadatas") if isinstance(all_docs, dict) else getattr(all_docs, "metadatas", None)
-        for meta in (metadatas or []):
-            source = (meta or {}).get("source_file")
-            if source:
-                counts[source] = counts.get(source, 0) + 1
-        return [{"name": k, "chunk_count": v} for k, v in sorted(counts.items())]
-    except Exception as e:
-        logger.warning(f"Could not retrieve indexed files: {e}")
-        return []
-
-
 # Initialize system
 try:
     rag_system = load_rag_system()
@@ -178,7 +144,7 @@ with st.sidebar:
 
     # --- Knowledge base management ------------------------------------------
     st.subheader("📚 Knowledge Base")
-    indexed_files = get_indexed_files(rag_system)
+    indexed_files = rag_system.get_indexed_files()
 
     if indexed_files:
         st.caption(f"{len(indexed_files)} file(s) indexed")
@@ -199,11 +165,11 @@ with st.sidebar:
             st.write("This removes every indexed file. This can't be undone.")
             if st.button("Yes, clear everything", type="primary"):
                 try:
-                    vector_store = _get_vector_store(rag_system)
-                    if vector_store is not None and hasattr(vector_store, "_collection"):
-                        vector_store._collection.delete(where={})
-                    st.success("Knowledge base cleared")
-                    st.rerun()
+                    if rag_system.clear_knowledge_base():
+                        st.success("Knowledge base cleared")
+                        st.rerun()
+                    else:
+                        st.error("Failed to clear knowledge base")
                 except Exception as e:
                     st.error(f"Failed to clear knowledge base: {e}")
     else:
@@ -330,8 +296,7 @@ if user_input:
             # actually and independently controls behavior.
             route_decision = None
             try:
-                vector_store = _get_vector_store(rag_system)
-                router = QueryRouter(vector_store, config_dict)
+                router = QueryRouter(rag_system.vector_store, config_dict)
                 route_decision = router.route(user_input, mode)
             except Exception as e:
                 logger.warning(f"Router preview failed (non-fatal): {e}")
