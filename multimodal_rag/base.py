@@ -233,6 +233,9 @@ class QueryRequest:
     include_metadata: bool = True
     rerank: bool = False
     generation_params: Dict[str, Any] = field(default_factory=dict)
+    # Explicit chat mode: "general" (never touch files) or "files" (always search files).
+    # Kept optional/"auto" for backward compatibility with older callers.
+    mode: str = "auto"
 
 
 @dataclass
@@ -294,14 +297,21 @@ class OllamaLLM(BaseLLM):
             if context and context.strip() and "Context from documents:" not in prompt:
                 full_prompt = f"Context: {context}\n\nQuestion: {prompt}"
             
+            options = {
+                'temperature': kwargs.get('temperature', 0.7),
+                'top_p': kwargs.get('top_p', 0.9),
+                'max_tokens': kwargs.get('max_tokens', 2048)
+            }
+            # Only pin a seed when one is explicitly provided, so normal
+            # requests keep varied, natural sampling.
+            seed = kwargs.get('seed')
+            if seed is not None:
+                options['seed'] = int(seed)
+
             response = self.ollama.chat(
                 model=self.model_name,
                 messages=[{'role': 'user', 'content': full_prompt}],
-                options={
-                    'temperature': kwargs.get('temperature', 0.7),
-                    'top_p': kwargs.get('top_p', 0.9),
-                    'max_tokens': kwargs.get('max_tokens', 2048)
-                }
+                options=options
             )
             return response['message']['content']
         except Exception as e:
@@ -310,15 +320,20 @@ class OllamaLLM(BaseLLM):
     def generate_streaming_response(self, prompt: str, **kwargs):
         """Generate streaming response using Ollama."""
         try:
+            options = {
+                'temperature': kwargs.get('temperature', 0.7),
+                'top_p': kwargs.get('top_p', 0.9),
+                'max_tokens': kwargs.get('max_tokens', 2048)
+            }
+            seed = kwargs.get('seed')
+            if seed is not None:
+                options['seed'] = int(seed)
+
             stream = self.ollama.chat(
                 model=self.model_name,
                 messages=[{'role': 'user', 'content': prompt}],
                 stream=True,
-                options={
-                    'temperature': kwargs.get('temperature', 0.7),
-                    'top_p': kwargs.get('top_p', 0.9),
-                    'max_tokens': kwargs.get('max_tokens', 2048)
-                }
+                options=options
             )
             for chunk in stream:
                 if 'message' in chunk and 'content' in chunk['message']:
