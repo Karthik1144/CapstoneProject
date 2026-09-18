@@ -1,4 +1,4 @@
-﻿"""
+﻿﻿"""
 Enhanced system - simplified version that uses SimpleRAGSystem.
 """
 
@@ -45,7 +45,25 @@ class EnhancedMultimodalRAGSystem:
     def query(self, query: Union[str, QueryRequest]) -> QueryResponse:
         """Process a query and return response."""
         return self._simple_system.query(query)
-    
+
+    @property
+    def vector_store(self):
+        """Expose the underlying vector store so callers don't need to know
+        this system wraps SimpleRAGSystem internally."""
+        return self._simple_system.vector_store
+
+    def has_indexed_content(self) -> bool:
+        """Delegate to the underlying simple system."""
+        return self._simple_system.has_indexed_content()
+
+    def get_indexed_files(self):
+        """Delegate to the underlying simple system."""
+        return self._simple_system.get_indexed_files()
+
+    def delete_file(self, filename: str) -> bool:
+        """Delegate to the underlying simple system."""
+        return self._simple_system.delete_file(filename)
+
     def get_system_status(self) -> Dict[str, Any]:
         """Get current system status."""
         status = self._simple_system.get_system_status()
