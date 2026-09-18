@@ -131,34 +131,55 @@ class SimpleRAGSystem:
                 query_obj = query
             
             logger.info(f"Processing query: {query_text}")
-            
-            # Check if this is a conversational query
-            is_conversational = self._is_conversational_query(query_text)
-            
+
+            mode = getattr(query_obj, 'mode', 'auto') or 'auto'
+
             context = ""
             sources = []
-            
-            # Only retrieve documents for non-conversational queries
-            if not is_conversational and self.vector_store:
-                retrieval_result = self.vector_store.similarity_search(
-                    query_text,
-                    k=self.config.get('retrieval', {}).get('top_k', 5)
-                )
-                
-                # Filter to only truly relevant chunks
-                relevant_chunks = self._filter_relevant_context(retrieval_result.chunks, query_text)
-                
-                # Generate context from relevant chunks
-                if relevant_chunks:
-                    context = self._build_context(relevant_chunks)
-                    sources = relevant_chunks
-                
-                logger.info(f"Retrieved {len(relevant_chunks)} relevant chunks for query")
+            is_conversational = False
+
+            if mode == 'general':
+                # General Chat is fully independent of the knowledge base:
+                # never search, never read files, regardless of the question.
+                logger.info("Mode=general: skipping file/vector search entirely")
+
+            elif mode == 'files':
+                # Chat with Files is fully independent of general knowledge:
+                # always search, even for greetings/small talk.
+                if self.vector_store:
+                    retrieval_result = self.vector_store.similarity_search(
+                        query_text,
+                        k=self.config.get('retrieval', {}).get('top_k', 5)
+                    )
+                    relevant_chunks = self._filter_relevant_context(retrieval_result.chunks, query_text)
+                    if relevant_chunks:
+                        context = self._build_context(relevant_chunks)
+                        sources = relevant_chunks
+                    logger.info(f"Mode=files: retrieved {len(relevant_chunks)} relevant chunks")
+                else:
+                    logger.info("Mode=files: no vector store available")
+
             else:
-                logger.info(f"Treating as conversational query: {query_text}")
-            
+                # Legacy/auto behavior, kept for backward compatibility with
+                # any code that doesn't pass an explicit mode.
+                is_conversational = self._is_conversational_query(query_text)
+                if not is_conversational and self.vector_store:
+                    retrieval_result = self.vector_store.similarity_search(
+                        query_text,
+                        k=self.config.get('retrieval', {}).get('top_k', 5)
+                    )
+                    relevant_chunks = self._filter_relevant_context(retrieval_result.chunks, query_text)
+                    if relevant_chunks:
+                        context = self._build_context(relevant_chunks)
+                        sources = relevant_chunks
+                    logger.info(f"Retrieved {len(relevant_chunks)} relevant chunks for query")
+                else:
+                    logger.info(f"Treating as conversational query: {query_text}")
+
             # Generate response using LLM with appropriate prompting
-            response = self._generate_contextual_response(query_text, context, is_conversational, **query_obj.generation_params)
+            response = self._generate_contextual_response(
+                query_text, context, is_conversational, mode=mode, **query_obj.generation_params
+            )
             
             return QueryResponse(
                 answer=response,
@@ -298,14 +319,45 @@ class SimpleRAGSystem:
             context_parts.append(f"[{i+1}] From '{source_name}'{page_info}:\n{chunk.content}")
         return "\n\n".join(context_parts)
     
-    def _generate_contextual_response(self, query_text: str, context: str, is_conversational: bool, **kwargs) -> str:
-        """Generate response with appropriate prompting based on query type."""
-        if is_conversational:
-            # For conversational queries, use simple, friendly prompting
+    def _generate_contextual_response(
+        self, query_text: str, context: str, is_conversational: bool, mode: str = 'auto', **kwargs
+    ) -> str:
+        """Generate response with appropriate prompting based on query type/mode."""
+
+        if mode == 'general':
+            # Pure general-knowledge answer. No mention of files, ever.
+            system_prompt = (
+                "You are a helpful, knowledgeable AI assistant. Answer the user's "
+                "question directly using your own general knowledge. Do not mention "
+                "or reference any uploaded documents or files, even if some exist."
+            )
+            full_prompt = f"{system_prompt}\n\nUser: {query_text}\nAssistant:"
+
+        elif mode == 'files':
+            if context and context.strip():
+                full_prompt = f"""You are a helpful AI assistant that answers strictly from the user's uploaded files. Use ONLY the provided context to answer. Always mention the specific document name(s) where you found the information. Do not add outside/general knowledge.
+
+Context from documents:
+{context}
+
+Question: {query_text}
+
+Answer (include specific document names in your response):"""
+            else:
+                full_prompt = f"""You are a helpful AI assistant restricted to the user's uploaded files. No relevant information was found in the uploaded documents for this question. Clearly tell the user you couldn't find anything relevant in their files, and suggest they rephrase the question or upload a document that covers it. Do NOT answer from general knowledge.
+
+Question: {query_text}
+
+Answer:"""
+
+        elif is_conversational:
+            # Legacy path: simple, friendly prompting for greetings.
             system_prompt = "You are a helpful AI assistant. Respond naturally and conversationally to greetings and casual interactions. Keep responses brief and friendly."
             full_prompt = f"{system_prompt}\n\nUser: {query_text}\nAssistant:"
+
         else:
-            # For document queries, use RAG-style prompting
+            # Legacy path: RAG-style prompting with silent fallback (kept only
+            # for old/auto callers - the explicit modes above no longer use this).
             if context and context.strip():
                 full_prompt = f"""You are a helpful AI assistant. Use the provided context to answer the user's question. Always mention the specific document name(s) where you found the information. If the context doesn't contain relevant information, say so and provide what general help you can.
 
@@ -321,14 +373,14 @@ Answer (include specific document names in your response):"""
 Question: {query_text}
 
 Answer:"""
-        
+
         # Generate response using LLM
         response = self.llm.generate_response(
             prompt=full_prompt,
             context="",  # Context already included in prompt
             **kwargs
         )
-        
+
         return response
     
     def get_system_status(self) -> Dict[str, Any]:
@@ -490,7 +542,8 @@ class MultimodalRAGSystem:
                 'top_p': 0.9,
                 'top_k': 50,
                 'do_sample': True,
-                'max_new_tokens': 1024
+                'max_new_tokens': 1024,
+                'seed': None
             }
         }
     
