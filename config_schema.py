@@ -186,6 +186,10 @@ class GenerationConfig(BaseModel):
     top_k: int = Field(default=50, ge=1, le=100, description="Top-k sampling")
     do_sample: bool = Field(default=True, description="Enable sampling")
     max_new_tokens: int = Field(default=1024, ge=1, le=4096, description="Max new tokens to generate")
+    seed: Optional[int] = Field(
+        default=None,
+        description="Fixed random seed for reproducible generation. Leave unset for varied output each time."
+    )
     
     @model_validator(mode='after')
     def validate_sampling_params(self) -> 'GenerationConfig':
@@ -433,6 +437,7 @@ class ConfigLoader:
             f"{cls.ENV_PREFIX}TOP_K": "retrieval.top_k",
             f"{cls.ENV_PREFIX}TEMPERATURE": "generation.temperature",
             f"{cls.ENV_PREFIX}MAX_TOKENS": "generation.max_tokens",
+            f"{cls.ENV_PREFIX}SEED": "generation.seed",
         }
         
         for env_var, config_path in env_mappings.items():
