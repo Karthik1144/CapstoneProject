@@ -210,11 +210,17 @@ with st.sidebar:
 
 with st.expander("📤 Upload documents", expanded=not indexed_files):
     st.caption("Supported: PDF, Word, TXT/MD, images (JPG, PNG), audio (MP3, WAV)")
+    if "upload_widget_key" not in st.session_state:
+        st.session_state.upload_widget_key = 0
+
     uploaded_files = st.file_uploader(
         "Drop files here or click to browse",
-        type=["pdf", "docx", "doc", "txt", "md", "rtf", "png", "jpg", "jpeg", "gif", "bmp", "mp3", "wav", "m4a", "ogg"],
+        type=["pdf", "docx", "doc", "txt", "md", "rtf",
+            "png", "jpg", "jpeg", "gif", "bmp",
+            "mp3", "wav", "m4a", "ogg"],
         accept_multiple_files=True,
         label_visibility="collapsed",
+        key=f"document_uploader_{st.session_state.upload_widget_key}",
     )
 
     if uploaded_files:
@@ -247,6 +253,9 @@ with st.expander("📤 Upload documents", expanded=not indexed_files):
 
         progress_bar.empty()
         status_text.empty()
+
+        # Reset the uploader so already-processed files are not processed again
+        st.session_state.upload_widget_key += 1
         st.rerun()
 
 # ============================================================================
@@ -301,7 +310,11 @@ if user_input:
             except Exception as e:
                 logger.warning(f"Router preview failed (non-fatal): {e}")
 
-            generation_params = {"temperature": st.session_state.temperature}
+            generation_params = {
+                "temperature": st.session_state.temperature,
+                "max_tokens": 256
+            }
+
             if st.session_state.use_fixed_seed:
                 generation_params["seed"] = int(st.session_state.seed_value)
 
