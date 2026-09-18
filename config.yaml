@@ -79,6 +79,7 @@ generation:
   top_k: 50
   do_sample: true
   max_new_tokens: 1024
+  seed: null # Set an integer here (or toggle it in the UI) for reproducible answers
 
 ui:
   title: "SmartRAG - Multimodal AI Assistant"
