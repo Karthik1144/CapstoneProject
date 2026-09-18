@@ -51,6 +51,26 @@ retrieval:
   similarity_threshold: 0.7
   rerank_enabled: false
 
+
+# ============================================================================
+# QUERY ROUTING - Smart routing between General Chat and RAG
+# ============================================================================
+query_routing:
+  default_mode: "auto"
+  relevance_threshold: 0.5
+  retrieval_top_k: 5
+  max_context_chunks: 3
+  max_context_chars: 4000
+
+# ============================================================================
+# PERFORMANCE - Streaming and optimization settings
+# ============================================================================
+performance:
+  streaming_enabled: true
+  lazy_load_vision: true
+  lazy_load_audio: true
+  cache_embeddings: true
+
 generation:
   # LLM generation parameters
   max_tokens: 2048

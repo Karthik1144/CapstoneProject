@@ -69,15 +69,12 @@ class ImageProcessor(BaseProcessor):
         if self.ocr_enabled and not self.tesseract_available:
             logger.warning("Tesseract not available. Install with: pip install pytesseract")
         
-        # Initialize vision model
+        # Vision model is loaded lazily (only when an image is actually
+        # processed) to avoid downloading/loading BLIP on every startup,
+        # even for runs that never touch an image file.
         self.vision_processor = None
         self.vision_model = None
-        if self.vision_model_available:
-            try:
-                self._load_vision_model()
-            except Exception as e:
-                logger.warning(f"Failed to load vision model: {str(e)}")
-                self.vision_model_available = False
+        self._vision_model_load_attempted = False
     
     def _load_vision_model(self):
         """Load the vision model for image captioning."""
@@ -156,6 +153,23 @@ class ImageProcessor(BaseProcessor):
             except Exception as e:
                 logger.debug(f"EXIF extraction failed: {str(e)}")
             
+                   # Generate image caption using vision model (lazy-loaded on first use)
+            if self.vision_model_available and not self._vision_model_load_attempted:
+                self._vision_model_load_attempted = True
+                try:
+                    self._load_vision_model()
+                except Exception as e:
+                    logger.warning(f"Failed to load vision model: {str(e)}")
+                    self.vision_model_available = False
+
+            if self.vision_model_available and self.vision_model is not None:
+                try:
+                    caption = self._generate_caption(image)
+                    if caption:
+                        content_parts.append(f"Image Description: {caption}")
+                        metadata['has_caption'] = True
+                except Exception as e:
+                    logger.warning(f"Caption generation failed for {path}: {str(e)}")
             if not content_parts:
                 return ProcessingResult(
                     chunks=[],
@@ -168,7 +182,7 @@ class ImageProcessor(BaseProcessor):
             
             # Create chunks
             chunks = self._create_chunks(content, metadata, self.chunk_size, self.chunk_overlap)
-            
+           
             processing_time = time.time() - start_time
             
             return ProcessingResult(

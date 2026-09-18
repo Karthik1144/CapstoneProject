@@ -175,6 +175,66 @@ class SimpleRAGSystem:
                 query=query_text if 'query_text' in locals() else str(query),
                 confidence_score=0.0
             )
+        
+    def has_indexed_content(self) -> bool:
+        """Check if knowledge base has indexed content"""
+        try:
+            if self.vector_store is None:
+                return False
+            
+            if hasattr(self.vector_store, '_collection'):
+                count = self.vector_store._collection.count()
+                return count > 0
+            elif hasattr(self.vector_store, 'get_collection_count'):
+                return self.vector_store.get_collection_count() > 0
+            
+            return False
+        except Exception as e:
+            logger.warning(f"Error checking indexed content: {e}")
+            return False
+    
+    def get_indexed_files(self) -> List[Dict]:
+        """Get list of indexed files with metadata"""
+        try:
+            files = []
+            if self.vector_store and hasattr(self.vector_store, '_collection'):
+                all_docs = self.vector_store._collection.get()
+                
+                sources_dict = {}
+                if all_docs and hasattr(all_docs, 'metadatas'):
+                    for metadata in all_docs.metadatas:
+                        if isinstance(metadata, dict) and 'source_file' in metadata:
+                            source = metadata['source_file']
+                            if source not in sources_dict:
+                                sources_dict[source] = 0
+                            sources_dict[source] += 1
+                
+                for source, chunk_count in sources_dict.items():
+                    file_ext = source.split('.')[-1].upper() if '.' in source else 'UNKNOWN'
+                    files.append({
+                        'name': source,
+                        'chunk_count': chunk_count,
+                        'type': file_ext
+                    })
+            
+            return sorted(files, key=lambda x: x['name'])
+        except Exception as e:
+            logger.error(f"Error getting indexed files: {e}")
+            return []
+    
+    def delete_file(self, filename: str) -> bool:
+        """Delete all chunks for a specific source file"""
+        try:
+            if self.vector_store and hasattr(self.vector_store, '_collection'):
+                self.vector_store._collection.delete(
+                    where={"source_file": filename}
+                )
+                logger.info(f"Deleted {filename} from knowledge base")
+                return True
+            return False
+        except Exception as e:
+            logger.error(f"Error deleting file {filename}: {e}")
+            return False
     
     def _is_conversational_query(self, query_text: str) -> bool:
         """Determine if a query is conversational vs document-based."""
@@ -480,6 +540,25 @@ class MultimodalRAGSystem:
                 'active_system': None,
                 'error': 'No active system'
             }
+
+        
+    def has_indexed_content(self) -> bool:
+        """Check if knowledge base has indexed content (delegated to active system)"""
+        if self._system and hasattr(self._system, 'has_indexed_content'):
+            return self._system.has_indexed_content()
+        return False
+    
+    def get_indexed_files(self) -> List[Dict]:
+        """Get list of indexed files (delegated to active system)"""
+        if self._system and hasattr(self._system, 'get_indexed_files'):
+            return self._system.get_indexed_files()
+        return []
+    
+    def delete_file(self, filename: str) -> bool:
+        """Delete a specific file (delegated to active system)"""
+        if self._system and hasattr(self._system, 'delete_file'):
+            return self._system.delete_file(filename)
+        return False
 
 
 # Backward compatibility aliases
