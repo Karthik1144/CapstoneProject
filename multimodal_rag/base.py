@@ -297,10 +297,15 @@ class OllamaLLM(BaseLLM):
             if context and context.strip() and "Context from documents:" not in prompt:
                 full_prompt = f"Context: {context}\n\nQuestion: {prompt}"
             
+            # NOTE: Ollama's real /api/chat option for capping output length is
+            # `num_predict`, not `max_tokens` (max_tokens is an OpenAI-ism and
+            # is silently ignored by Ollama). Sending the wrong key here meant
+            # generation was never actually capped, which is why replies could
+            # take minutes on slower hardware.
             options = {
                 'temperature': kwargs.get('temperature', 0.7),
                 'top_p': kwargs.get('top_p', 0.9),
-                'max_tokens': kwargs.get('max_tokens', 2048)
+                'num_predict': kwargs.get('max_tokens', 2048)
             }
             # Only pin a seed when one is explicitly provided, so normal
             # requests keep varied, natural sampling.
@@ -323,7 +328,7 @@ class OllamaLLM(BaseLLM):
             options = {
                 'temperature': kwargs.get('temperature', 0.7),
                 'top_p': kwargs.get('top_p', 0.9),
-                'max_tokens': kwargs.get('max_tokens', 2048)
+                'num_predict': kwargs.get('max_tokens', 2048)
             }
             seed = kwargs.get('seed')
             if seed is not None:

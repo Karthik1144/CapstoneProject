@@ -57,8 +57,10 @@ class QueryRouter:
     def route(self, query: str, mode: QueryMode) -> RoutingDecision:
         """
         Args:
-            query: User's question (unused for routing now - kept for
-                interface compatibility / future logging).
+            query: User's question (unused - routing is decided purely by
+                mode now, no preview search is performed here anymore, since
+                that meant every query paid for two embedding + retrieval
+                round-trips instead of one).
             mode: GENERAL or FILES - always honored exactly as selected.
         """
         if mode == QueryMode.GENERAL:
@@ -68,20 +70,13 @@ class QueryRouter:
                 confidence=1.0,
             )
 
-        # mode == QueryMode.FILES
-        retrieved = None
-        try:
-            if self.vector_store is not None:
-                result = self.vector_store.similarity_search(query, k=5)
-                retrieved = len(result.chunks) if result and hasattr(result, "chunks") else 0
-        except Exception as e:
-            logger.warning(f"Could not preview file search for debug info: {e}")
-
+        # mode == QueryMode.FILES - the actual retrieval happens once, inside
+        # SimpleRAGSystem.query(). retrieved_chunks gets filled in by the
+        # caller afterwards from the real response, not guessed here.
         return RoutingDecision(
             route=RouteType.RAG,
             reason="Chat with Files mode: searching your uploaded files only",
             confidence=1.0,
-            retrieved_chunks=retrieved,
         )
 
     def has_indexed_content(self) -> bool:

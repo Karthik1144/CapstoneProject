@@ -14,6 +14,7 @@ try:
     USE_NEW_CONFIG = True
 except ImportError:
     USE_NEW_CONFIG = False
+    SmartRAGConfig = Any  # fallback so the type hint below doesn't NameError
     logging.warning("config_schema not found, using legacy config loading")
 
 from .base import (
@@ -119,7 +120,7 @@ class SimpleRAGSystem:
                 answer="System not available",
                 sources=[],
                 query=query if isinstance(query, str) else query.query,
-                confidence=0.0
+                confidence_score=0.0
             )
         
         try:
@@ -575,7 +576,7 @@ class MultimodalRAGSystem:
                 answer="No active system available. Please check Ollama is running and llama3.1:8b model is available.",
                 sources=[],
                 query=str(query),
-                confidence=0.0
+                confidence_score=0.0
             )
         
         # Use the simple system query method
@@ -612,6 +613,25 @@ class MultimodalRAGSystem:
         if self._system and hasattr(self._system, 'delete_file'):
             return self._system.delete_file(filename)
         return False
+
+    @property
+    def vector_store(self):
+        """Expose the active system's vector store, whichever backend is running."""
+        if self._system and hasattr(self._system, 'vector_store'):
+            return self._system.vector_store
+        return None
+
+    def clear_knowledge_base(self) -> bool:
+        """Delete every indexed chunk from the vector store."""
+        try:
+            vs = self.vector_store
+            if vs is not None and hasattr(vs, '_collection'):
+                vs._collection.delete(where={})
+                return True
+            return False
+        except Exception as e:
+            logger.error(f"Error clearing knowledge base: {e}")
+            return False
 
 
 # Backward compatibility aliases
