@@ -58,7 +58,7 @@ def clean_vector_database():
     
     if vector_db_path.exists():
         try:
-            # Remove the entire vector database directory
+            # Remove entire vector database directory
             shutil.rmtree(vector_db_path)
             print("✅ Successfully removed vector database directory")
             print("📁 Path removed:", vector_db_path.absolute())
