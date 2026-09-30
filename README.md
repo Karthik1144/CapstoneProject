@@ -17,7 +17,7 @@ docker-compose up -d
 
 - Documents: PDF, DOCX, TXT, MD with intelligent chunking
 - Images: OCR + visual understanding via BLIP
-- Audio: Automatic transcription with Whisper
+- Audio: Automatic transcription with the Whisper
 
 **Local AI Stack**
 
