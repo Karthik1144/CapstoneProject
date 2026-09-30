@@ -299,7 +299,7 @@ if user_input:
             badge_placeholder.markdown(f'<span class="mode-badge {badge_class}">{mode_label}</span>', unsafe_allow_html=True)
 
             logger.info(f"Query: {user_input} | Mode: {mode.value}")
-
+            # actually and independently controls behavior.
             # Routing decision is purely informational now (for the debug
             # panel) - the mode passed into the request below is what
             # actually and independently controls behavior.
