@@ -18,7 +18,7 @@ models:
   # Vision model for image understanding (BLIP)
   vision_model: "Salesforce/blip-image-captioning-base"
 
-  # Speech-to-text model (keeping audio processing)
+  # Speech-to-text Model (keeping audio processing)
   whisper_model: "base"
 
 vector_store:
